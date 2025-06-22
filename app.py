@@ -1,13 +1,20 @@
 # app.py - Streamlit Web Application
 
 import streamlit as st
-import torch
-import torch.nn as nn
 import numpy as np
 import matplotlib.pyplot as plt
 from PIL import Image
 import io
 import os
+
+# PyTorch imports
+try:
+    import torch
+    import torch.nn as nn
+    TORCH_AVAILABLE = True
+except ImportError:
+    st.error("PyTorch is not installed. Please install PyTorch to use this app.")
+    TORCH_AVAILABLE = False
 
 # Set page config
 st.set_page_config(
@@ -57,12 +64,13 @@ class Generator(nn.Module):
         
         return img
 
-# Quick fix - add this to your existing app.py
-# Replace the model loading section with this:
-
 @st.cache_resource
 def load_model():
     """Load the trained generator model with PyTorch 2.6+ compatibility"""
+    if not TORCH_AVAILABLE:
+        st.error("PyTorch is not available.")
+        return None, None, None
+        
     device = torch.device("cpu")
     
     # Model parameters
@@ -110,6 +118,9 @@ def load_model():
 
 def generate_digit_images(generator, digit, latent_dim, device, num_samples=5):
     """Generate multiple images of a specific digit"""
+    if not TORCH_AVAILABLE:
+        return None
+        
     with torch.no_grad():
         # Create different noise vectors for diversity
         noise = torch.randn(num_samples, latent_dim, device=device)
@@ -146,6 +157,10 @@ def create_image_grid(images):
 
 # Main app
 def main():
+    if not TORCH_AVAILABLE:
+        st.error("❌ PyTorch is not available. Please check your requirements.txt and redeploy.")
+        return
+        
     st.title("🔢 MNIST Handwritten Digit Generator")
     st.markdown("Generate handwritten digits using a trained Conditional GAN!")
     
@@ -198,20 +213,23 @@ def main():
                     generator, selected_digit, latent_dim, device, num_samples=5
                 )
                 
-                # Create and display image grid
-                image_grid = create_image_grid(generated_images)
-                st.image(image_grid, caption=f"5 generated samples of digit {selected_digit}")
-                
-                # Display individual images in columns
-                st.markdown("### Individual Samples:")
-                cols = st.columns(5)
-                for i, img in enumerate(generated_images):
-                    with cols[i]:
-                        # Convert numpy array to PIL Image
-                        pil_img = Image.fromarray((img[0] * 255).astype(np.uint8), mode='L')
-                        st.image(pil_img, caption=f"Sample {i+1}", use_column_width=True)
-                
-                st.session_state.generate_new = False
+                if generated_images is not None:
+                    # Create and display image grid
+                    image_grid = create_image_grid(generated_images)
+                    st.image(image_grid, caption=f"5 generated samples of digit {selected_digit}")
+                    
+                    # Display individual images in columns
+                    st.markdown("### Individual Samples:")
+                    cols = st.columns(5)
+                    for i, img in enumerate(generated_images):
+                        with cols[i]:
+                            # Convert numpy array to PIL Image
+                            pil_img = Image.fromarray((img[0] * 255).astype(np.uint8), mode='L')
+                            st.image(pil_img, caption=f"Sample {i+1}", use_column_width=True)
+                    
+                    st.session_state.generate_new = False
+                else:
+                    st.error("Failed to generate images.")
                 
             except Exception as e:
                 st.error(f"Error generating images: {e}")
